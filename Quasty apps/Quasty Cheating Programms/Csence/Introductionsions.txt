@@ -1,0 +1,19 @@
+Introductionsions
+
+免责声明：本文件由本转载者进行放置，将不会承担使用者任何责任
+Disclaimer: This document is placed by the reposter and will not be held responsible by the user
+
+安装步骤
+1. 选择合适的浏览器器
+2. 下载对应的浏览器插件
+3. 安装插件Tampermonkey（详细安装步骤见https://col.tdbbs.top/CSense/）
+4. 在Tampermonkey中添加脚本
+
+云里雾里起床战争解封步骤
+1. 打开浏览器，进入云里雾里起床战争的游戏页面
+2. 打开Csence接着再找到“云数据”
+3. 点击“用户”按钮
+4. 里面会有三个选项分别是封禁一天，禁言一天，永久封禁
+5. 拿永久封进来例，选中里面的内容容“已封禁”删除，接着点击Csence外的部分
+
+严谨声明：本文件仅用于学习和研究，不涉及任何违法开挂用途。
