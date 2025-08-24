@@ -1,0 +1,297 @@
+import sys
+import re
+import subprocess
+import json
+import os
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout,
+    QMessageBox, QComboBox, QGridLayout, QGroupBox, QStyleFactory, QListWidget, QHBoxLayout
+)
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
+
+class IPChanger(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.status_value = None
+        self.current_ip_value = None
+        self.config_file = os.path.join(os.path.dirname(__file__), "ip_configs.json")
+        self.configs = self.load_configs()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Quasty IP Changer--AnonymousCH_X073")
+        self.setGeometry(200, 200, 800, 500)
+
+        # 主题美化
+        QApplication.setStyle(QStyleFactory.create("Macintosh"))
+
+        main_layout = QHBoxLayout()
+
+        # 🎨【左侧布局：网卡信息 + 已保存配置】
+        left_layout = QVBoxLayout()
+
+        # 🎨【网卡信息】分组
+        net_group = QGroupBox("Network card information")
+        net_layout = QGridLayout()
+        net_group.setLayout(net_layout)
+
+        self.interface_label = QLabel("Select network card:")
+        self.interface_dropdown = QComboBox()
+        self.interface_dropdown.currentIndexChanged.connect(self.update_ui)
+        self.get_network_interfaces()
+
+        self.status_label = QLabel("Network card status:")
+        self.status_value = QLabel("N/A")
+        self.current_ip_label = QLabel("Current IP:")
+        self.current_ip_value = QLabel("N/A")
+        self.subnet_label = QLabel("Subnet Mask:")
+        self.subnet_value = QLabel("N/A")
+        self.gateway_label = QLabel("Gateway:")
+        self.gateway_value = QLabel("N/A")
+
+        net_layout.addWidget(self.interface_label, 0, 0)
+        net_layout.addWidget(self.interface_dropdown, 0, 1)
+        net_layout.addWidget(self.status_label, 1, 0)
+        net_layout.addWidget(self.status_value, 1, 1)
+        net_layout.addWidget(self.current_ip_label, 2, 0)
+        net_layout.addWidget(self.current_ip_value, 2, 1)
+        net_layout.addWidget(self.subnet_label, 3, 0)
+        net_layout.addWidget(self.subnet_value, 3, 1)
+        net_layout.addWidget(self.gateway_label, 4, 0)
+        net_layout.addWidget(self.gateway_value, 4, 1)
+
+        # 🎨【保存的配置】分组
+        saved_group = QGroupBox("Saved configurations")
+        saved_layout = QVBoxLayout()
+        saved_group.setLayout(saved_layout)
+
+        self.saved_configs_list = QListWidget()
+        self.load_saved_configs_to_list()
+        self.saved_configs_list.itemClicked.connect(self.load_selected_config)
+
+        self.delete_config_btn = QPushButton("Delete selected configuration")
+        self.delete_config_btn.clicked.connect(self.delete_selected_config)
+        self.delete_config_btn.setStyleSheet("background-color: #F44336; color: white; font-weight: bold;")
+
+        saved_layout.addWidget(self.saved_configs_list)
+        saved_layout.addWidget(self.delete_config_btn)
+
+        left_layout.addWidget(net_group)
+        left_layout.addWidget(saved_group)
+
+        # 🎨【右侧布局：IP 配置】
+        right_layout = QVBoxLayout()
+        ip_group = QGroupBox("IP configuration")
+        ip_layout = QGridLayout()
+        ip_group.setLayout(ip_layout)
+
+        self.profile_name_label = QLabel("Configuration Name:")
+        self.profile_name_input = QLineEdit()
+        self.ip_label = QLabel("New IP:")
+        self.ip_input = QLineEdit()
+        self.subnet_label = QLabel("Subnet Mask:")
+        self.subnet_input = QLineEdit()
+        self.gateway_label = QLabel("Gateway:")
+        self.gateway_input = QLineEdit()
+
+        ip_layout.addWidget(self.profile_name_label, 0, 0)
+        ip_layout.addWidget(self.profile_name_input, 0, 1)
+        ip_layout.addWidget(self.ip_label, 1, 0)
+        ip_layout.addWidget(self.ip_input, 1, 1)
+        ip_layout.addWidget(self.subnet_label, 2, 0)
+        ip_layout.addWidget(self.subnet_input, 2, 1)
+        ip_layout.addWidget(self.gateway_label, 3, 0)
+        ip_layout.addWidget(self.gateway_input, 3, 1)
+
+        self.apply_btn = QPushButton("Change IP")
+        self.apply_btn.clicked.connect(self.change_ip)
+        self.apply_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+
+        self.dhcp_btn = QPushButton("Restore DHCP")
+        self.dhcp_btn.clicked.connect(self.set_dhcp)
+        self.dhcp_btn.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;")
+
+        self.save_config_btn = QPushButton("Save Configuration")
+        self.save_config_btn.clicked.connect(self.save_config)
+        self.save_config_btn.setStyleSheet("background-color: #FFC107; color: white; font-weight: bold;")
+
+        right_layout.addWidget(ip_group)
+        right_layout.addWidget(self.apply_btn)
+        right_layout.addWidget(self.dhcp_btn)
+        right_layout.addWidget(self.save_config_btn)
+
+        # 🎨【主界面布局】
+        main_layout.addLayout(left_layout, 1)
+        main_layout.addLayout(right_layout, 1)
+        self.setLayout(main_layout)
+        self.update_ui()
+
+    def get_network_interfaces(self):
+        """获取 macOS 可用的网络接口列表"""
+        try:
+            result = subprocess.run("networksetup -listallnetworkservices", shell=True, capture_output=True, text=True)
+            interfaces = result.stdout.strip().split("\n")[1:]  # 去掉第一行（标题）
+            self.interface_dropdown.addItems(interfaces)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Unable to retrieve the list of network cards:{str(e)}")
+
+    def get_network_info(self, interface):
+        """获取网卡详细状态"""
+        try:
+            result = subprocess.run(f"networksetup -getinfo \"{interface}\"", shell=True, capture_output=True, text=True)
+            output = result.stdout.strip()
+
+            status_match = re.search(r"IP address: (.+)", output)
+            subnet_match = re.search(r"Subnet mask: (.+)", output)
+            gateway_match = re.search(r"Router: (.+)", output)
+
+            ip_address = status_match.group(1) if status_match else "Not connected"
+            subnet = subnet_match.group(1) if subnet_match else "N/A"
+            gateway = gateway_match.group(1) if gateway_match else "N/A"
+
+            if "DHCP Configuration" in output:
+                return "Dynamic IP (DHCP)", ip_address, subnet, gateway
+            else:
+                return "Static IP", ip_address, subnet, gateway
+        except Exception:
+            return "未知", "N/A", "N/A", "N/A"
+
+    def update_ui(self):
+        """更新 UI（显示当前网卡状态和详细信息）"""
+        interface = self.interface_dropdown.currentText()
+        if not interface:
+            return
+
+        status, ip, subnet, gateway = self.get_network_info(interface)
+        if self.status_value and self.current_ip_value and self.subnet_value and self.gateway_value:
+            self.status_value.setText(status)
+            self.current_ip_value.setText(ip)
+            self.subnet_value.setText(subnet)
+            self.gateway_value.setText(gateway)
+
+    def validate_ip(self, ip):
+        """校验 IP 格式"""
+        pattern = r"^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$"
+        return re.match(pattern, ip) is not None
+
+    def change_ip(self):
+        """修改 IP 地址"""
+        interface = self.interface_dropdown.currentText()
+        ip = self.ip_input.text().strip()
+        subnet = self.subnet_input.text().strip()
+        gateway = self.gateway_input.text().strip()
+
+        if not (self.validate_ip(ip) and self.validate_ip(subnet) and self.validate_ip(gateway)):
+            QMessageBox.warning(self, "Error", "IP,The subnet mask or gateway format is incorrect!")
+            return
+
+        cmd = f"osascript -e 'do shell script \"networksetup -setmanual \\\"{interface}\\\" {ip} {subnet} {gateway}\" with administrator privileges'"
+        self.run_command(cmd)
+
+    def set_dhcp(self):
+        """切换到 DHCP 自动获取 IP"""
+        interface = self.interface_dropdown.currentText()
+        cmd = f"osascript -e 'do shell script \"networksetup -setdhcp \\\"{interface}\\\"\" with administrator privileges'"
+        self.run_command(cmd)
+
+    def run_command(self, cmd):
+        """运行 shell 命令"""
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode == 0:
+                QMessageBox.information(self, "success", "Operation successful")
+                self.update_ui()
+            else:
+                QMessageBox.critical(self, "Error", f"Execution failed:\n{result.stderr}")
+        except Exception as e:
+            QMessageBox.critical(self, "abnormal", f"An error occurred:\n{str(e)}")
+
+    def load_configs(self):
+        """加载保存的配置"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Unable to load configuration file: {str(e)}")
+                return {}
+        return {}
+
+    def save_configs(self):
+        """保存配置到文件"""
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(self.configs, f, indent=2)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Unable to load configuration file: {str(e)}")
+
+    def save_config(self):
+        """保存当前 IP 配置"""
+        profile_name = self.profile_name_input.text().strip()
+        ip = self.ip_input.text().strip()
+        subnet = self.subnet_input.text().strip()
+        gateway = self.gateway_input.text().strip()
+
+        if not profile_name:
+            QMessageBox.warning(self, "Error", "Please enter the configuration name!")
+            return
+
+        if not (self.validate_ip(ip) and self.validate_ip(subnet) and self.validate_ip(gateway)):
+            QMessageBox.warning(self, "Error", "IP,The subnet mask or gateway format is incorrect!")
+            return
+
+        self.configs[profile_name] = {
+            "ip": ip,
+            "subnet": subnet,
+            "gateway": gateway
+        }
+        self.save_configs()
+        self.load_saved_configs_to_list()
+        QMessageBox.information(self, "success", "Configuration saved")
+        self.profile_name_input.clear()
+        self.ip_input.clear()
+        self.subnet_input.clear()
+        self.gateway_input.clear()
+
+    def load_saved_configs_to_list(self):
+        """加载保存的配置到列表显示"""
+        self.saved_configs_list.clear()
+        for profile_name, config in self.configs.items():
+            self.saved_configs_list.addItem(f"{profile_name}: {config['ip']} / {config['subnet']} / {config['gateway']}")
+
+    def load_selected_config(self, item):
+        """加载选中的配置到输入框"""
+        if not item:
+            return
+        profile_name = item.text().split(":")[0].strip()
+        if profile_name in self.configs:
+            config = self.configs[profile_name]
+            self.ip_input.setText(config["ip"])
+            self.subnet_input.setText(config["subnet"])
+            self.gateway_input.setText(config["gateway"])
+            self.profile_name_input.setText(profile_name)
+
+    def delete_selected_config(self):
+        """删除选中的配置"""
+        current_item = self.saved_configs_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "Error", "Please select a configuration first!")
+            return
+
+        profile_name = current_item.text().split(":")[0].strip()
+        if profile_name in self.configs:
+            del self.configs[profile_name]
+            self.save_configs()
+            self.load_saved_configs_to_list()
+            QMessageBox.information(self, "success", "Configuration deleted")
+            self.profile_name_input.clear()
+            self.ip_input.clear()
+            self.subnet_input.clear()
+            self.gateway_input.clear()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = IPChanger()
+    window.show()
+    sys.exit(app.exec())
