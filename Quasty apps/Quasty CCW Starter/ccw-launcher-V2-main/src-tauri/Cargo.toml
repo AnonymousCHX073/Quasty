@@ -1,0 +1,22 @@
+[package]
+name = "ccw-launcher"
+version = "0.0.2"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1", features = ["updater", "api-all"] }
+serde = { version = "1", features = ["derive"] }
+reqwest = { version = "0.11", features = ["blocking"] }
+tokio = { version = "1.13", features = ["rt", "rt-multi-thread", "time"] }
+serde_json = "1"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,27 @@
+.logo {
+    height: 70%;
+    aspect-ratio: 1/1;
+    margin-right: 10px;
+}
+
+.title {
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    font-size: calc(var(--fontsize) + 10px);
+    color: var(--fontcolor);
+    clip-path: inset(0 0 0 0);
+    margin-right: 10px;
+    transition: all ease-out 0.3s;
+}
+
+.avatar {
+    background-color: #bfbfbf;
+}
+
+@media screen and (max-width: 500px) {
+    .title {
+        clip-path: inset(0 100% 0 0);
+        margin-right: -143px;
+    }
+}

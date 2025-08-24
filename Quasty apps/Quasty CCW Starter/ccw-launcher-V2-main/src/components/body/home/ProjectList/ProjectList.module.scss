@@ -1,0 +1,17 @@
+.content {
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    display: flex;
+}
+
+.div {
+    padding: 20px;
+    width: 100%;
+    overflow: scroll;
+    overflow-x: hidden;
+}
+
+.div::-webkit-scrollbar {
+    display: none;
+}
